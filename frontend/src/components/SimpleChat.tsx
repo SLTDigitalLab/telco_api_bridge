@@ -22,11 +22,11 @@ const TypingIndicator = () => (
 const MessageBubble = ({ message }: { message: ChatMessage }) => {
   const isUser = message.sender === 'user';
 
-  // Consistent time formatting function that works on both server and client
+  // Consistent time formatting function
   const formatTime = (timestamp: Date) => {
-    // Use consistent formatting that works in both environments
-    const hours = timestamp.getHours().toString().padStart(2, '0');
-    const minutes = timestamp.getMinutes().toString().padStart(2, '0');
+    const date = new Date(timestamp);
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
     return `${hours}:${minutes}`;
   };
   
@@ -55,7 +55,7 @@ const MessageBubble = ({ message }: { message: ChatMessage }) => {
         
         <p className={`text-xs text-gray-500 mt-1 ${
           isUser ? 'text-right' : 'text-left'
-        }`}>
+        }`} suppressHydrationWarning>
           {formatTime(message.timestamp)}
         </p>
 
