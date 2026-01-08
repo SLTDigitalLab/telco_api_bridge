@@ -13,6 +13,8 @@ export interface ChatMessage {
   sender: 'user' | 'bot';
   timestamp: Date;
   products?: Product[];
+  action_performed?: string;
+  success?: boolean;
 }
 
 export interface ChatRequest {
@@ -23,4 +25,6 @@ export interface ChatRequest {
 export interface ChatResponse {
   response: string;
   products?: Product[];
+  action_performed?: string;
+  success?: boolean;
 }

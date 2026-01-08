@@ -92,7 +92,7 @@ const MessageBubble = ({ message }: { message: ChatMessage }) => {
 };
 
 const SimpleChat = () => {
-  const { messages, isLoading, addMessage, setLoading } = useChatStore();
+  const { messages, isLoading, addMessage, setLoading, setProducts } = useChatStore();
   const [localInput, setLocalInput] = useState('');
 
   const handleSendMessage = async () => {
@@ -117,16 +117,25 @@ const SimpleChat = () => {
         text: response.response,
         sender: 'bot',
         timestamp: new Date(),
-        products: response.products
+        products: response.products,
+        action_performed: response.action_performed,
+        success: response.success
       };
       
       addMessage(botMessage);
+      
+      // If products were returned, update the products store
+      if (response.products && response.products.length > 0) {
+        setProducts(response.products);
+      }
+      
     } catch (error) {
       const errorMessage: ChatMessage = {
         id: Date.now() + 1,
-        text: 'Sorry, I encountered an error. Please try again later.',
+        text: 'Sorry, I encountered an error. Please ensure the backend is running and try again.',
         sender: 'bot',
         timestamp: new Date(),
+        success: false
       };
       
       addMessage(errorMessage);
@@ -184,7 +193,7 @@ const SimpleChat = () => {
             value={localInput}
             onChange={(e) => setLocalInput(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Ask about SLT products, fiber broadband, PeoTV, mobile services..."
+            placeholder="Try: 'show all products', 'add product PROD999 named Ultra Fiber in Internet Services with quantity 50', 'update product PROD001 quantity to 100', 'delete product PROD002'"
             className="flex-1 min-h-[60px] max-h-32 resize-none border-gray-200 focus:border-blue-500 focus:ring-blue-500"
             disabled={isLoading}
           />
@@ -199,7 +208,7 @@ const SimpleChat = () => {
 
         <div className="mt-4 text-center">
           <p className="text-xs text-gray-500">
-            Try asking: &ldquo;Show me fiber products&rdquo; or &ldquo;What mobile services do you have?&rdquo;
+            Try: &ldquo;show all products&rdquo; • &ldquo;add product NEW001 named Ultra Fiber in Internet Services with quantity 50&rdquo; • &ldquo;update product PROD001 quantity to 100&rdquo;
           </p>
         </div>
       </div>
