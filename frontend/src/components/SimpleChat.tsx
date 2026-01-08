@@ -193,7 +193,7 @@ const SimpleChat = () => {
             value={localInput}
             onChange={(e) => setLocalInput(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Try: 'show all products', 'add product PROD999 named Ultra Fiber in Internet Services with quantity 50', 'update product PROD001 quantity to 100', 'delete product PROD002'"
+            placeholder="Enter the task you want to perform on product Database. Examples given above an below"
             className="flex-1 min-h-[60px] max-h-32 resize-none border-gray-200 focus:border-blue-500 focus:ring-blue-500"
             disabled={isLoading}
           />
@@ -208,7 +208,7 @@ const SimpleChat = () => {
 
         <div className="mt-4 text-center">
           <p className="text-xs text-gray-500">
-            Try: &ldquo;show all products&rdquo; • &ldquo;add product NEW001 named Ultra Fiber in Internet Services with quantity 50&rdquo; • &ldquo;update product PROD001 quantity to 100&rdquo;
+            Try: &ldquo;show all products&rdquo; • &ldquo;add product NEW001 named Ultra Fiber in Internet Services with quantity 50&rdquo; • &ldquo;update product PROD001 quantity to 100&rdquo; • &rdquo;delete product PROD002&rdquo;
           </p>
         </div>
       </div>
