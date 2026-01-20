@@ -1,0 +1,51 @@
+{
+  "EMP001": {
+    "name": "Kamal",
+    "has_active_loan": true,
+    "loan_amount": 50000,
+    "monthly_deduction": 2000,
+    "remaining_balance": 42000
+  },
+  "EMP002": {
+    "name": "Nimali",
+    "has_active_loan": true,
+    "loan_amount": 3000,
+    "monthly_deduction": 250,
+    "remaining_balance": 3000
+  },
+  "EMP003": {
+    "name": "Sunil",
+    "has_active_loan": false,
+    "loan_amount": 0,
+    "monthly_deduction": 0,
+    "remaining_balance": 0
+  },
+  "EMP004": {
+    "name": "Priyanka",
+    "has_active_loan": true,
+    "loan_amount": 100000,
+    "monthly_deduction": 5000,
+    "remaining_balance": 75000
+  },
+  "EMP005": {
+    "name": "Ruwan",
+    "has_active_loan": true,
+    "loan_amount": 25000,
+    "monthly_deduction": 1500,
+    "remaining_balance": 10000
+  },
+  "EMP006": {
+    "name": "Chamari",
+    "has_active_loan": true,
+    "loan_amount": 200000,
+    "monthly_deduction": 5555,
+    "remaining_balance": 200000
+  },
+  "EMP007": {
+    "name": "Thilina",
+    "has_active_loan": true,
+    "loan_amount": 80000,
+    "monthly_deduction": 3500,
+    "remaining_balance": 62000
+  }
+}

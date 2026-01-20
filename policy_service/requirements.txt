@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+mcp
+langchain
+langchain-community
+langchain-openai
+langchain-chroma
+chromadb
+tiktoken
+docx2txt
+pymupdf

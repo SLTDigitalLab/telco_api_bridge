@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  leave_service:
+    build: ./leave_service
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./leave_service/data.json:/app/data.json
+    restart: unless-stopped
+
+  loan_service:
+    build: ./loan_service
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./loan_service/loan_data.json:/app/loan_data.json
+    restart: unless-stopped
+
+  # 3. Policy Department (RAG)
+  policy_service:
+    build: ./policy_service
+    ports:
+      - "8002:8002"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      # Persist the ChromaDB so we don't pay to rebuild it every restart
+      - ./policy_service/chroma_db:/app/chroma_db
+
+  orchestrator:
+    build: ./orchestrator
+    ports:
+      - "8005:8005"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LEAVE_SERVICE_URL=http://leave_service:8000/sse
+      - LOAN_SERVICE_URL=http://loan_service:8001/sse
+      - POLICY_SERVICE_URL=http://policy_service:8002/sse
+    depends_on:
+      - leave_service
+      - loan_service
+      - policy_service
