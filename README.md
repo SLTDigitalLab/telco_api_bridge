@@ -2,7 +2,9 @@
 
 An AI-powered HR assistant using **MCP (Model Context Protocol)** to provide leave management, loan processing, and HR policy search through natural conversation.
 
-## 🚀 Quick Start
+<img width="578" height="447" alt="HR_Agent diagram" src="https://github.com/user-attachments/assets/52ca74c1-7d8a-4521-bca4-db5b8544bfd0" />
+
+## Quick Start
 
 ### Prerequisites
 - Docker & Docker Compose
@@ -29,7 +31,7 @@ docker-compose up --build
 
 ---
 
-## �️ Available Tools
+## Available Tools
 
 ### Leave Service
 - `get_leave_balance(employee_id)` - Get leave balance
@@ -45,7 +47,7 @@ docker-compose up --build
 
 ---
 
-## 💬 Claude Desktop Integration
+## Claude Desktop Integration
 
 Add to your `claude_desktop_config.json`:
 
@@ -62,7 +64,7 @@ Add to your `claude_desktop_config.json`:
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 HR Agent/
@@ -77,7 +79,7 @@ HR Agent/
 
 ---
 
-## � Adding Policy Documents
+## Adding Policy Documents
 
 Place PDF, DOCX, or TXT files in `policy_service/docs/` and restart:
 
@@ -87,7 +89,7 @@ docker-compose restart policy_service
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ```bash
 # View logs
