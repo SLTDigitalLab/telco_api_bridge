@@ -2,4 +2,4 @@ venv/
 .venv/
 /uv.lock
 /.python-version
-/main.py
+*.db

@@ -1,0 +1,76 @@
+{
+  "products": [
+    {
+      "product_id": "SLT001",
+      "product_name": "Fiber Broadband 100Mbps",
+      "product_category": "Internet Services",
+      "product_quantity": 1,
+      "updated_at": "2026-01-21T16:56:40.870229Z",
+      "created_at": "2026-01-21T16:58:09.614669Z"
+    },
+    {
+      "product_id": "SLT002",
+      "product_name": "PeoTV Entertainment Package",
+      "product_category": "Digital TV",
+      "product_quantity": 2,
+      "created_at": "2026-01-21T16:58:09.614669Z",
+      "updated_at": "2026-01-21T17:04:22.950743Z"
+    },
+    {
+      "product_id": "SLT003",
+      "product_name": "SLT Mobitel 4G SIM Card",
+      "product_category": "Mobile Services",
+      "product_quantity": 1000,
+      "created_at": "2026-01-21T16:58:09.614669Z"
+    },
+    {
+      "product_id": "SLT004",
+      "product_name": "WiFi Router HUAWEI HG8145V5",
+      "product_category": "Network Equipment",
+      "product_quantity": 150,
+      "created_at": "2026-01-21T16:58:09.614669Z"
+    },
+    {
+      "product_id": "SLT005",
+      "product_name": "SLT Fixed Line Service",
+      "product_category": "Landline Services",
+      "product_quantity": 200,
+      "created_at": "2026-01-21T16:58:09.614669Z"
+    },
+    {
+      "product_id": "SLT006",
+      "product_name": "SLT Business Internet 1Gbps",
+      "product_category": "Enterprise Services",
+      "product_quantity": 50,
+      "created_at": "2026-01-21T16:58:09.614669Z"
+    },
+    {
+      "product_id": "SLT007",
+      "product_name": "PeoTV Set-Top Box",
+      "product_category": "Digital TV",
+      "product_quantity": 250,
+      "created_at": "2026-01-21T16:58:09.614669Z"
+    },
+    {
+      "product_id": "SLT008",
+      "product_name": "SLT Cloud Storage 1TB",
+      "product_category": "Cloud Services",
+      "product_quantity": 100,
+      "created_at": "2026-01-21T16:58:09.614669Z"
+    },
+    {
+      "product_name": "Fiber Broadband 300Mbps",
+      "product_category": "Internet Services",
+      "product_quantity": 150,
+      "product_id": "SLT009",
+      "created_at": "2026-01-21T16:55:07.281851Z"
+    },
+    {
+      "product_name": "SLT Mobitel 5G Premium",
+      "product_category": "Mobile Services",
+      "product_quantity": 500,
+      "product_id": "SLT010",
+      "created_at": "2026-01-21T16:58:09.614669Z"
+    }
+  ]
+}
