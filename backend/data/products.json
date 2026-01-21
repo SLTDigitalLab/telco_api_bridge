@@ -2,25 +2,25 @@
   "products": [
     {
       "product_id": "SLT001",
-      "product_name": "Fiber Broadband 100Mbps",
+      "product_name": "fiber ultra 200mbps",
       "product_category": "Internet Services",
-      "product_quantity": 1,
-      "updated_at": "2026-01-21T16:56:40.870229Z",
+      "product_quantity": 600,
+      "updated_at": "2026-01-21T17:51:15.845546Z",
       "created_at": "2026-01-21T16:58:09.614669Z"
     },
     {
       "product_id": "SLT002",
       "product_name": "PeoTV Entertainment Package",
       "product_category": "Digital TV",
-      "product_quantity": 2,
+      "product_quantity": 300,
       "created_at": "2026-01-21T16:58:09.614669Z",
-      "updated_at": "2026-01-21T17:04:22.950743Z"
+      "updated_at": "2026-01-21T17:39:38.896830Z"
     },
     {
       "product_id": "SLT003",
-      "product_name": "SLT Mobitel 4G SIM Card",
+      "product_name": "Samsung Mobile S25",
       "product_category": "Mobile Services",
-      "product_quantity": 1000,
+      "product_quantity": 50,
       "created_at": "2026-01-21T16:58:09.614669Z"
     },
     {
@@ -71,6 +71,13 @@
       "product_quantity": 500,
       "product_id": "SLT010",
       "created_at": "2026-01-21T16:58:09.614669Z"
+    },
+    {
+      "product_name": "5g wifi router",
+      "product_category": "hardware",
+      "product_quantity": 250,
+      "product_id": "SLT011",
+      "created_at": "2026-01-21T17:50:38.910679Z"
     }
   ]
 }

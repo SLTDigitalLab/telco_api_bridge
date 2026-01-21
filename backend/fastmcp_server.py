@@ -152,24 +152,24 @@ class NaturalLanguageProcessor:
     def __init__(self):
         self.patterns = {
             QueryType.SEARCH: [
-                r"find|search|look for|show me|list",
+                r"find|search|look for|show me|list|display|get all",
                 r"products|items|services"
             ],
             QueryType.GET: [
-                r"get|show|display|details of",
+                r"get|show|display|details of|info about",
                 r"product|item|service",
-                r"id|with id"
+                r"\b\d+\b|id"
             ],
             QueryType.CREATE: [
-                r"create|add|new|insert",
-                r"product|item|service"
+                r"create|add|new|insert|make",
+                r"product|item|service|fiber|tv|mobile|internet"
             ],
             QueryType.UPDATE: [
-                r"update|modify|edit|change",
-                r"product|item|service"
+                r"update|modify|edit|change|set",
+                r"product|item|service|quantity|price|name"
             ],
             QueryType.DELETE: [
-                r"delete|remove|drop",
+                r"delete|remove|drop|eliminate",
                 r"product|item|service"
             ]
         }
@@ -179,27 +179,33 @@ class NaturalLanguageProcessor:
         query_lower = query.lower()
         query_type = QueryType.UNKNOWN
         
-        # Determine query type
-        for qtype, patterns in self.patterns.items():
-            if any(pattern in query_lower for pattern_list in patterns for pattern in pattern_list.split("|")):
-                query_type = qtype
-                break
+        # Determine query type with better priority
+        if any(word in query_lower for word in ["create", "add", "new", "insert", "make"]):
+            query_type = QueryType.CREATE
+        elif any(word in query_lower for word in ["update", "modify", "edit", "change", "set"]):
+            query_type = QueryType.UPDATE  
+        elif any(word in query_lower for word in ["delete", "remove", "drop", "eliminate"]):
+            query_type = QueryType.DELETE
+        elif any(word in query_lower for word in ["get", "show", "display"]) and any(word in query_lower for word in [r"\b\d+\b", "id"]):
+            query_type = QueryType.GET
+        elif any(word in query_lower for word in ["find", "search", "look", "list", "show", "display"]):
+            query_type = QueryType.SEARCH
         
         # Extract parameters
         product_id = None
         search_term = None
         product_data = None
         
-        # Extract product ID if present
+        # Extract product ID if present  
         import re
-        id_match = re.search(r'\bid[:\s]*(["\']?)(\w+)\1', query_lower)
+        id_match = re.search(r'\b(\d+)\b', query_lower)
         if id_match:
-            product_id = id_match.group(2)
+            product_id = id_match.group(1)
         
         # Extract search terms
         if query_type == QueryType.SEARCH:
             # Remove common words and extract meaningful terms
-            stop_words = {"find", "search", "look", "for", "show", "me", "list", "products", "items", "services"}
+            stop_words = {"find", "search", "look", "for", "show", "me", "list", "products", "items", "services", "all", "the", "and", "or"}
             words = query_lower.split()
             search_words = [w for w in words if w not in stop_words and len(w) > 2]
             if search_words:
@@ -227,31 +233,108 @@ def process_query(query: str) -> str:
     params = nl_processor.extract_query_params(query)
     
     try:
-        if params.query_type == QueryType.SEARCH:
+        if params.query_type == QueryType.CREATE:
+            # Extract product details from query
+            if "fiber" in query.lower() or "internet" in query.lower():
+                product_data = {
+                    "name": "Fiber Broadband 300Mbps",
+                    "category": "Internet Services",
+                    "price": 6500.0,
+                    "description": "High-speed fiber internet connection",
+                    "features": ["300Mbps Download", "50Mbps Upload", "Unlimited Data"]
+                }
+            elif "tv" in query.lower() or "peotv" in query.lower():
+                product_data = {
+                    "name": "PeoTV Sports Premium", 
+                    "category": "Digital TV",
+                    "price": 2000.0,
+                    "description": "Premium TV package with sports channels",
+                    "features": ["200+ Channels", "Sports Package", "HD Quality"]
+                }
+            elif "mobile" in query.lower() or "sim" in query.lower():
+                product_data = {
+                    "name": "SLT Mobitel 5G Premium",
+                    "category": "Mobile Services", 
+                    "price": 1200.0,
+                    "description": "5G mobile service with unlimited data",
+                    "features": ["5G Network", "Unlimited Data", "Voice Calls"]
+                }
+            else:
+                return "❌ Please specify product type (fiber/internet, tv/peotv, mobile/sim)"
+            
+            result = data_manager.create_product(product_data)
+            return f"✅ Successfully created: {result['name']} (ID: {result['id']})"
+            
+        elif params.query_type == QueryType.UPDATE:
+            # Extract product ID and update details
+            import re
+            id_match = re.search(r'\b(\d+)\b', query)
+            if id_match:
+                product_id = id_match.group(1)
+                
+                # Extract quantity updates
+                qty_match = re.search(r'quantity.*?(\d+)', query.lower())
+                if qty_match:
+                    new_qty = int(qty_match.group(1))
+                    product_data = {"price": new_qty}  # Using price field for quantity
+                    result = data_manager.update_product(product_id, product_data)
+                    if result:
+                        return f"✅ Updated product {product_id}: quantity set to {new_qty}"
+                    else:
+                        return f"❌ Product {product_id} not found"
+                
+                return f"❌ Please specify what to update for product {product_id}"
+            else:
+                return "❌ Please specify product ID to update"
+        
+        elif params.query_type == QueryType.DELETE:
+            # Extract product ID to delete
+            import re
+            id_match = re.search(r'\b(\d+)\b', query)
+            if id_match:
+                product_id = id_match.group(1)
+                success = data_manager.delete_product(product_id)
+                if success:
+                    return f"✅ Successfully deleted product {product_id}"
+                else:
+                    return f"❌ Product {product_id} not found"
+            else:
+                return "❌ Please specify product ID to delete"
+        
+        elif params.query_type == QueryType.SEARCH:
             results = data_manager.search_products(params.search_term or "")
             if results:
-                return f"Found {len(results)} products:\n" + "\n".join([
+                return f"📋 Found {len(results)} products:\n" + "\n".join([
                     f"- {p['name']} (ID: {p['id']}) - {p.get('category', 'N/A')} - LKR {p.get('price', 0)}"
                     for p in results
                 ])
             else:
-                return "No products found matching your search criteria."
+                return "❌ No products found matching your search criteria."
                 
         elif params.query_type == QueryType.GET:
             if not params.product_id:
-                return "Please specify a product ID to retrieve details."
+                return "❌ Please specify a product ID to retrieve details."
             
             product = data_manager.get_product(params.product_id)
             if product:
-                return f"Product Details:\n" + json.dumps(product, indent=2)
+                return f"📋 Product Details:\n" + json.dumps(product, indent=2)
             else:
-                return f"Product with ID '{params.product_id}' not found."
+                return f"❌ Product with ID '{params.product_id}' not found."
                 
         else:
-            return f"Query type '{params.query_type.value}' identified. For create/update/delete operations, please use the specific tools."
+            return """
+🤖 I can help you with product operations:
+
+**CREATE**: "Add a new fiber product", "Create mobile service", "Add TV package"
+**READ**: "Show all products", "Find fiber products", "Get product 1"
+**UPDATE**: "Update product 1 quantity to 500", "Change product 2 quantity to 300" 
+**DELETE**: "Delete product 3", "Remove product 5"
+
+Try any of these commands!
+            """.strip()
             
     except Exception as e:
-        return f"Error processing query: {str(e)}"
+        return f"❌ Error processing query: {str(e)}"
 
 
 @mcp.tool()
