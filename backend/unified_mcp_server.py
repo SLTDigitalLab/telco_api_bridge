@@ -72,7 +72,6 @@ class JSONDataManager:
                         "id": "1",
                         "name": "SLT Fiber 100Mbps",
                         "category": "Internet Services",
-                        "price": 5990.0,
                         "description": "High-speed fiber internet connection with 100Mbps download speed",
                         "features": ["100Mbps Download", "20Mbps Upload", "Unlimited Data", "WiFi Router Included"],
                         "product_id": "SLT001",
@@ -85,7 +84,6 @@ class JSONDataManager:
                         "id": "2", 
                         "name": "SLT PEO TV Premium",
                         "category": "Digital TV",
-                        "price": 1500.0,
                         "description": "Premium IPTV service with local and international channels",
                         "features": ["150+ Channels", "HD Quality", "Catch-up TV", "Mobile App Access"],
                         "product_id": "SLT002",
@@ -98,7 +96,6 @@ class JSONDataManager:
                         "id": "3",
                         "name": "SLT Mobitel 4G SIM",
                         "category": "Mobile Services",
-                        "price": 100.0,
                         "description": "4G mobile SIM card with voice and data services",
                         "features": ["4G Network", "Voice Calls", "SMS", "Data Plans"],
                         "product_id": "SLT003",
@@ -306,7 +303,7 @@ def process_query(query: str) -> str:
                 product_data = {
                     "name": "Fiber Broadband 300Mbps",
                     "category": "Internet Services",
-                    "price": 300,
+                    "product_quantity": 300,
                     "description": "High-speed fiber internet connection",
                     "features": ["300Mbps Download", "50Mbps Upload", "Unlimited Data"]
                 }
@@ -314,7 +311,7 @@ def process_query(query: str) -> str:
                 product_data = {
                     "name": "PeoTV Sports Premium", 
                     "category": "Digital TV",
-                    "price": 250,
+                    "product_quantity": 250,
                     "description": "Premium TV package with sports channels",
                     "features": ["200+ Channels", "Sports Package", "HD Quality"]
                 }
@@ -322,7 +319,7 @@ def process_query(query: str) -> str:
                 product_data = {
                     "name": "SLT Mobitel 5G Premium",
                     "category": "Mobile Services", 
-                    "price": 800,
+                    "product_quantity": 800,
                     "description": "5G mobile service with unlimited data",
                     "features": ["5G Network", "Unlimited Data", "Voice Calls"]
                 }

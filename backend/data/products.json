@@ -71,13 +71,6 @@
       "product_quantity": 500,
       "product_id": "SLT010",
       "created_at": "2026-01-21T16:58:09.614669Z"
-    },
-    {
-      "product_name": "5g wifi router",
-      "product_category": "hardware",
-      "product_quantity": 250,
-      "product_id": "SLT011",
-      "created_at": "2026-01-21T17:50:38.910679Z"
     }
   ]
 }
