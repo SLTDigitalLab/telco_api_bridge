@@ -27,17 +27,3 @@ services:
     volumes:
       # Persist the ChromaDB so we don't pay to rebuild it every restart
       - ./policy_service/chroma_db:/app/chroma_db
-
-  orchestrator:
-    build: ./orchestrator
-    ports:
-      - "8005:8005"
-    environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - LEAVE_SERVICE_URL=http://leave_service:8000/sse
-      - LOAN_SERVICE_URL=http://loan_service:8001/sse
-      - POLICY_SERVICE_URL=http://policy_service:8002/sse
-    depends_on:
-      - leave_service
-      - loan_service
-      - policy_service

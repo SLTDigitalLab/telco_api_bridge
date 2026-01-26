@@ -1,50 +1,76 @@
+"""
+HR Agent Orchestrator - StreamableHTTP Transport
+
+This orchestrator connects to downstream MCP services (Leave, Loan, Policy)
+and exposes their tools via StreamableHTTP to Claude Desktop and other clients.
+
+Architecture:
+  Claude Desktop → StreamableHTTP /mcp → Orchestrator → SSE → MCP Services (Docker)
+  React Frontend → HTTP /chat → Orchestrator → SSE → MCP Services (Docker)
+"""
+
 import os
 import uvicorn
 import json
 import asyncio
 import sys
 import traceback
+import contextlib
+from dotenv import load_dotenv, find_dotenv
+
+# Load environment variables
+load_dotenv(find_dotenv())
+
 from urllib.parse import urlparse
 from contextlib import AsyncExitStack, asynccontextmanager
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from starlette.applications import Starlette
+from starlette.routing import Mount
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logging.getLogger("mcp").setLevel(logging.DEBUG)
+logging.getLogger("uvicorn").setLevel(logging.INFO)
 
 # MCP Imports
-from mcp.server import Server
-from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
-from mcp.types import Tool, TextContent, ImageContent, EmbeddedResource
+from mcp.server.fastmcp import FastMCP
+from mcp.types import Tool, TextContent
 from mcp.client.session import ClientSession
 from mcp.client.sse import sse_client
 from openai import AsyncOpenAI
-from starlette.routing import Mount
-from starlette.types import Receive, Scope, Send
 
 # --- Configuration ---
 MCP_SERVICES = {
-    "leave": os.getenv("LEAVE_SERVICE_URL", "http://leave_service:8000/sse"),
-    "loan": os.getenv("LOAN_SERVICE_URL", "http://loan_service:8001/sse"),
-    "policy": os.getenv("POLICY_SERVICE_URL", "http://policy_service:8002/sse"),
+    "leave": os.getenv("LEAVE_SERVICE_URL", "http://localhost:8000/sse"),
+    "loan": os.getenv("LOAN_SERVICE_URL", "http://localhost:8001/sse"),
+    "policy": os.getenv("POLICY_SERVICE_URL", "http://localhost:8002/sse"),
 }
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
+# --- FastMCP Server ---
+mcp = FastMCP("HR Agent Orchestrator")
+
 # --- Global State & Connection Manager ---
-class OrchestratorGlobal:
+class OrchestratorState:
     def __init__(self):
         self.service_tasks: Dict[str, asyncio.Task] = {}
         self.service_stop_events: Dict[str, asyncio.Event] = {}
         self.sessions: Dict[str, ClientSession] = {}
-        self.tool_map: Dict[str, str] = {} # tool_name -> service_name
+        self.tool_map: Dict[str, str] = {}  # tool_name -> service_name
+        self.registered_tools: set = set()  # Track registered tool names
 
     async def _manage_service_connection(self, name: str, url: str, stop_event: asyncio.Event, ready_future: asyncio.Future):
         """Background task to maintain connection context."""
         async with AsyncExitStack() as stack:
             try:
-                print(f"🔌 (Re)connecting to {name} at {url}...")
+                print(f"🔌 Connecting to {name} at {url}...")
                 parsed = urlparse(url)
                 port = parsed.port
                 headers = {"Host": f"localhost:{port}"} if port else {}
@@ -62,7 +88,7 @@ class OrchestratorGlobal:
                     print(f"    - Found tool: {tool.name}")
                 
                 self.sessions[name] = session
-                print(f"Connected to {name}")
+                print(f"✅ Connected to {name}")
                 sys.stdout.flush()
                 
                 if not ready_future.done():
@@ -73,7 +99,7 @@ class OrchestratorGlobal:
                 print(f"Stopping connection task for {name}")
 
             except Exception as e:
-                print(f"⚠️ Connection error in task for {name}: {e}")
+                print(f"⚠️ Connection error for {name}: {e}")
                 sys.stdout.flush()
                 if not ready_future.done():
                     ready_future.set_exception(e)
@@ -82,7 +108,7 @@ class OrchestratorGlobal:
                     del self.sessions[name]
 
     async def connect_service(self, name: str, url: str) -> Optional[ClientSession]:
-        """Connects a single service, managing it in a background task."""
+        """Connect to a single service."""
         await self.disconnect_service(name)
         
         stop_event = asyncio.Event()
@@ -97,12 +123,12 @@ class OrchestratorGlobal:
             await ready_future
             return self.sessions.get(name)
         except Exception as e:
-            print(f"⚠️ Failed to connect to {name} ({url}): {e}")
-            sys.stdout.flush()
+            print(f"⚠️ Failed to connect to {name}: {e}")
             await self.disconnect_service(name)
             return None
 
     async def disconnect_service(self, name: str):
+        """Disconnect from a service."""
         if name in self.service_stop_events:
             self.service_stop_events[name].set()
         
@@ -114,13 +140,13 @@ class OrchestratorGlobal:
             except asyncio.CancelledError:
                 pass
             except Exception as e:
-                print(f"Error awaiting disconnect task for {name}: {e}")
+                print(f"Error during disconnect of {name}: {e}")
         
         if name in self.sessions:
             del self.sessions[name]
 
     async def get_session(self, name: str) -> Optional[ClientSession]:
-        """Get existing session or attempt to connect."""
+        """Get existing session or reconnect."""
         if name in self.sessions:
             return self.sessions[name]
         
@@ -129,188 +155,179 @@ class OrchestratorGlobal:
             return await self.connect_service(name, url)
         return None
 
-    async def connect_downstream(self):
+    async def connect_all(self):
         """Initial connection to all services."""
         print("Connecting to all downstream services...")
         sys.stdout.flush()
-        tasks = []
         for name, url in MCP_SERVICES.items():
-            tasks.append(self.connect_service(name, url))
-        await asyncio.gather(*tasks)
+            await self.connect_service(name, url)
 
     async def cleanup(self):
+        """Cleanup all connections."""
         print("Closing all downstream connections...")
         for name in list(self.service_tasks.keys()):
             await self.disconnect_service(name)
 
-# Instantiate Global State
-state = OrchestratorGlobal()
+# Instantiate global state
+state = OrchestratorState()
 
-# --- MCP Server Setup ---
-mcp_server = Server("HR Agent Orchestrator")
 
-@mcp_server.list_tools()
-async def list_tools() -> list[Tool]:
-    """Lists all tools available from downstream services."""
+# --- Static MCP Tools ---
+# Instead of dynamic registration (which has schema issues), 
+# we provide meta-tools that work with any downstream tool
+
+@mcp.tool()
+async def list_available_tools() -> str:
+    """List all available HR tools from downstream services."""
     tools = []
-    
-    # Iterate through all configured services to ensure we have sessions
-    for name in MCP_SERVICES.keys():
-        session = await state.get_session(name)
+    for service_name in MCP_SERVICES.keys():
+        session = await state.get_session(service_name)
         if not session:
             continue
-
         try:
             result = await session.list_tools()
             for t in result.tools:
-                state.tool_map[t.name] = name
-                clean_tool = Tool(
-                    name=t.name,
-                    description=t.description,
-                    inputSchema=t.inputSchema
-                )
-                tools.append(clean_tool)
+                state.tool_map[t.name] = service_name
+                tools.append({
+                    "name": t.name,
+                    "description": t.description,
+                    "parameters": t.inputSchema
+                })
         except Exception as e:
-            print(f"Error listing tools from {name}: {e}")
-            await state.disconnect_service(name)
-            
-    return tools
+            print(f"Error listing tools from {service_name}: {e}")
+    
+    return json.dumps(tools, indent=2)
 
-@mcp_server.call_tool()
-async def call_tool(name: str, arguments: Any) -> list[TextContent]:
-    service_name = state.tool_map.get(name)
 
-    # 1. Discovery: Ensure we know which service handles this tool
+@mcp.tool()
+async def execute_hr_tool(tool_name: str, arguments_json: str = "{}") -> str:
+    """
+    Execute any HR tool by name with JSON arguments.
+    
+    Use list_available_tools first to see what's available.
+    
+    Args:
+        tool_name: The name of the tool to execute (e.g., 'search_hr_policies', 'get_leave_balance')
+        arguments_json: JSON string of arguments (e.g., '{"query": "maternity leave"}' or '{"employee_id": "E001"}')
+    """
+    try:
+        arguments = json.loads(arguments_json) if arguments_json else {}
+    except json.JSONDecodeError as e:
+        return f"Error: Invalid JSON arguments: {e}"
+    
+    return await execute_tool(tool_name, arguments)
+
+
+async def register_downstream_tools():
+    """
+    Pre-populate tool_map by connecting to downstream services.
+    Tools are exposed through execute_hr_tool proxy.
+    """
+    print("📋 Discovering downstream tools...")
+    
+    for service_name in MCP_SERVICES.keys():
+        session = await state.get_session(service_name)
+        if not session:
+            print(f"⚠️ Skipping {service_name} - not connected")
+            continue
+        
+        try:
+            result = await session.list_tools()
+            for tool in result.tools:
+                state.tool_map[tool.name] = service_name
+                print(f"    ✅ Found: {tool.name}")
+        except Exception as e:
+            print(f"⚠️ Error listing tools from {service_name}: {e}")
+    
+    print(f"📋 Total tools available: {len(state.tool_map)}")
+
+
+async def execute_tool(tool_name: str, arguments: dict) -> str:
+    """Execute a tool on the appropriate downstream service."""
+    service_name = state.tool_map.get(tool_name)
+    
     if not service_name:
-        await list_tools()
-        service_name = state.tool_map.get(name)
-
+        # Try to rediscover
+        await register_downstream_tools()
+        service_name = state.tool_map.get(tool_name)
+    
     if not service_name:
-        raise ValueError(f"Tool {name} not found.")
-
-    print(f"🔧 Proxying tool {name} to {service_name}...")
+        raise ValueError(f"Tool {tool_name} not found")
+    
+    print(f"🔧 Executing {tool_name} on {service_name}...")
     sys.stdout.flush()
-
-    # 2. Execution Loop: Retry logic for lost connections
+    
     for attempt in range(2):
         session = await state.get_session(service_name)
         
-        # If session is dead, try to reconnect and restart loop
         if not session:
             await state.disconnect_service(service_name)
             continue
-
+        
         try:
-            # 3. TIMEOUT PROTECTION: Force a 25s limit so we can reply to Claude
             result = await asyncio.wait_for(
-                session.call_tool(name, arguments or {}), 
-                timeout=25.0 
+                session.call_tool(tool_name, arguments or {}),
+                timeout=25.0
             )
-
-            # --- CRITICAL FIX START ---
-            # 4. ROBUST CONTENT EXTRACTION (Fixes RAG Crashes)
-            print(f"🔍 DEBUG: Raw Result Type from {name}: {type(result)}")
-            sys.stdout.flush()
-
+            
+            # Extract text from result
             texts = []
-            
-            # Iterate through content safely, handling various object types
             for c in result.content:
-                clean_text = ""
-                
-                # Case A: Standard MCP TextContent Object
                 if hasattr(c, 'text') and c.text:
-                    clean_text = str(c.text) # Force string cast
-                
-                # Case B: Dictionary (JSON serialization issues)
+                    texts.append(str(c.text))
                 elif isinstance(c, dict) and 'text' in c:
-                    clean_text = str(c['text'])
-                
-                # Case C: Fallback for other objects
-                elif hasattr(c, 'type') and c.type == 'text':
-                    # Try to extract text if it exists but wasn't caught above
-                    clean_text = str(getattr(c, 'text', ''))
-
-                # SANITIZE: Remove poison characters that break SSE streams and JSON
-                if clean_text:
-                    # Remove null bytes and carriage returns
-                    clean_text = clean_text.replace("\x00", "").replace("\r", "")
-                    # Replace smart quotes and other problematic Unicode
-                    clean_text = clean_text.replace(""", '"').replace(""", '"')
-                    clean_text = clean_text.replace("'", "'").replace("'", "'")
-                    clean_text = clean_text.replace("–", "-").replace("—", "-")
-                    # Ensure the text is valid for JSON (escape backslashes if raw)
-                    if clean_text.strip():
-                        texts.append(clean_text)
-
-            # 5. EMPTY RESPONSE HANDLING
+                    texts.append(str(c['text']))
+            
             if not texts:
-                print("❌ No text found after processing RAG output.")
-                return [TextContent(type="text", text="[Process finished, but no readable text content was returned by the tool.]")]
-
-            # 6. VOLUME PROTECTION
-            combined_text = "\n\n".join(texts)
+                return "[No content returned by tool]"
             
-            # Truncate to 4000 chars to prevent "Message Too Large" disconnects
-            if len(combined_text) > 4000:
-                print(f"✂️ Truncating output from {len(combined_text)} to 4000 chars")
-                combined_text = combined_text[:4000] + "\n...[Output truncated for speed]..."
+            combined = "\n\n".join(texts)
             
-            # Final Debug Log
-            print(f"🚀 Sending final payload ({len(combined_text)} chars) to Claude...")
-            print(f"📦 First 200 chars of payload: {combined_text[:200]}")
-            sys.stdout.flush()
-
-            response_content = [TextContent(type="text", text=combined_text)]
-            print(f"✅ Returning TextContent list with {len(response_content)} items")
-            sys.stdout.flush()
-            return response_content
-            # --- CRITICAL FIX END ---
-
+            # Truncate if too long
+            if len(combined) > 4000:
+                combined = combined[:4000] + "\n...[truncated]..."
+            
+            print(f"✅ {tool_name} returned {len(combined)} chars")
+            return combined
+            
         except asyncio.TimeoutError:
-            print(f"⏰ RAG Service timed out for tool {name}")
-            return [TextContent(type="text", text="Error: The service took too long to retrieve the documents. Please try a more specific query.")]
-
+            return f"Error: {tool_name} timed out"
         except Exception as e:
-            print(f"💥 Error executing tool {name} (Attempt {attempt+1}): {e}")
-            traceback.print_exc() # Print full stack trace to Docker logs
-            
-            # If it's a connection error, disconnect and let the loop retry
+            print(f"💥 Error executing {tool_name}: {e}")
             if "connection" in str(e).lower() and attempt == 0:
                 await state.disconnect_service(service_name)
                 continue
-                
-            return [TextContent(type="text", text=f"System Error: {str(e)}")]
+            return f"Error: {str(e)}"
+    
+    return f"Error: Failed to execute {tool_name}"
 
-    raise RuntimeError(f"Failed to execute tool {name} after retries.")
 
-
-# --- FastAPI App with Streamable HTTP ---
-
-# Create the session manager for Streamable HTTP
-session_manager = StreamableHTTPSessionManager(
-    app=mcp_server,
-    json_response=True,  # Use JSON responses for more reliability
-)
-
+# --- FastAPI App ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global session_manager
+    """Application lifespan - manage connections and MCP session manager."""
     # Connect to downstream services
-    await state.connect_downstream()
+    await state.connect_all()
     
-    # Start the session manager
-    async with session_manager.run():
-        print("✅ Streamable HTTP Session Manager started!")
+    # Register tools from downstream services
+    await register_downstream_tools()
+    
+    # Start FastMCP session manager
+    async with mcp.session_manager.run():
+        print("✅ Orchestrator started with StreamableHTTP transport!")
+        print(f"📍 MCP endpoint: http://localhost:8005/mcp")
+        print(f"📍 Chat endpoint: http://localhost:8005/chat")
         sys.stdout.flush()
         yield
     
-    # Shutdown
+    # Cleanup
     await state.cleanup()
 
-app = FastAPI(title="Orchestrator Service", lifespan=lifespan)
 
-# Allow CORS - important: expose Mcp-Session-Id header
+# Create FastAPI app
+app = FastAPI(title="HR Agent Orchestrator", lifespan=lifespan)
+
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -319,59 +336,65 @@ app.add_middleware(
     expose_headers=["Mcp-Session-Id"],
 )
 
-openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY, timeout=60.0)
+# Mount StreamableHTTP app at /mcp
+app.mount("/mcp", mcp.streamable_http_app())
 
-# --- MCP Routes (For Claude Desktop via Streamable HTTP) ---
-
-# ASGI handler for the MCP Streamable HTTP endpoint
-async def handle_mcp_request(scope: Scope, receive: Receive, send: Send) -> None:
-    """Handle all MCP Streamable HTTP requests."""
-    await session_manager.handle_request(scope, receive, send)
-
-# Mount the MCP handler on /mcp path
-from starlette.routing import Route
-from fastapi.responses import Response
-
-class ASGIResponse(Response):
-    def __init__(self, app, **kwargs):
-        super().__init__(**kwargs)
-        self.app = app
-
-    async def __call__(self, scope, receive, send):
-        await self.app(scope, receive, send)
-
-@app.api_route("/mcp", methods=["GET", "POST", "DELETE", "OPTIONS"])
-async def mcp_endpoint(request: Request):
-    """Streamable HTTP MCP Endpoint - handles all MCP communication"""
-    return ASGIResponse(handle_mcp_request)
+# Also mount SSE for backwards compatibility (optional)
+# app.mount("/sse", mcp.sse_app())
 
 
-# --- Chat Routes (For React Frontend) ---
+# --- Chat Endpoint for React Frontend ---
+openai_client = None
 
 class Message(BaseModel):
     role: str
     content: str
+
 class ChatRequest(BaseModel):
     messages: List[Message]
 
+
+async def get_all_tools() -> list[Tool]:
+    """Get all available tools from downstream services."""
+    tools = []
+    for name in MCP_SERVICES.keys():
+        session = await state.get_session(name)
+        if not session:
+            continue
+        try:
+            result = await session.list_tools()
+            for t in result.tools:
+                state.tool_map[t.name] = name
+                tools.append(Tool(
+                    name=t.name,
+                    description=t.description,
+                    inputSchema=t.inputSchema
+                ))
+        except Exception as e:
+            print(f"Error listing tools from {name}: {e}")
+    return tools
+
+
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
-    """
-    Existing chat endpoint for the React Frontend. 
-    Refactored to use the global state.
-    """
+    """Chat endpoint for React Frontend."""
+    global openai_client
+    
     if not OPENAI_API_KEY:
         raise HTTPException(status_code=500, detail="OPENAI_API_KEY not set")
+    
+    if openai_client is None:
+        openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY, timeout=60.0)
 
     async def event_generator():
-        # Build Tools List for OpenAI from the global tools
-        mcp_tools = await list_tools() # Usage of our internal function
+        # Get tools for OpenAI
+        mcp_tools = await get_all_tools()
         
         openai_tools = []
         for tool in mcp_tools:
-            # Clean schema
             clean_schema = tool.inputSchema.copy() if isinstance(tool.inputSchema, dict) else tool.inputSchema
-            if "title" in clean_schema: del clean_schema["title"]
+            if "title" in clean_schema:
+                del clean_schema["title"]
             
             openai_tools.append({
                 "type": "function",
@@ -384,28 +407,25 @@ async def chat_endpoint(request: ChatRequest):
 
         conversation = [{"role": m.role, "content": m.content} for m in request.messages]
         
-        # System Prompt
+        # System prompt
         system_message = {
-            "role": "system", 
+            "role": "system",
             "content": (
                 "You are the HR Assistant for this company. You must categorize the user's input and act accordingly:\n\n"
                 "**CATEGORY 1: GREETINGS & SMALL TALK**\n"
-                "- If the user says 'Hi', 'Hello', 'Who are you?', or 'Thanks', reply briefly and politely. Do not offer extra services unless asked.\n"
-                "- You do NOT need tools for this.\n\n"
+                "- If the user says 'Hi', 'Hello', 'Who are you?', or 'Thanks', reply briefly and politely.\n\n"
                 "**CATEGORY 2: BUSINESS QUESTIONS (LEAVE, LOANS, POLICIES)**\n"
-                "- You are an **INFORMATION RETRIEVAL BOT and an MCP who can do tasks**.\n"
-                "- **Rule A (Context Verification):** Verify that tool output explicitly mentions the specific topic requested.\n"
-                "- **Rule B:** Answer ONLY using information explicitly returned by the tools.\n"
-                "- **Rule D:** If the tool output is empty or irrelevant, state you are unable to answer."
+                "- You are an INFORMATION RETRIEVAL BOT and an MCP who can do tasks.\n"
+                "- Answer ONLY using information returned by the tools.\n"
+                "- If the tool output is empty or irrelevant, state you are unable to answer."
             )
         }
         if not conversation or conversation[0].get("role") != "system":
             conversation.insert(0, system_message)
 
-        for _ in range(5): 
-            # Check for Tool Calls or Final Answer
+        for _ in range(5):
             stream = await openai_client.chat.completions.create(
-                model="gpt-5-mini",
+                model="gpt-4o-mini",
                 messages=conversation,
                 tools=openai_tools if openai_tools else None,
                 tool_choice="auto" if openai_tools else None,
@@ -422,55 +442,40 @@ async def chat_endpoint(request: ChatRequest):
                     yield delta.content
                 if delta.tool_calls:
                     for tc in delta.tool_calls:
-                        if tc.index is not None:
-                            if len(tool_calls) <= tc.index:
-                                tool_calls.append({"id": "", "function": {"name": "", "arguments": ""}})
-                            if tc.id: tool_calls[tc.index]["id"] += tc.id
-                            if tc.function.name: tool_calls[tc.index]["function"]["name"] += tc.function.name
-                            if tc.function.arguments: tool_calls[tc.index]["function"]["arguments"] += tc.function.arguments
-
-            conversation.append({
-                "role": "assistant",
-                "content": current_message_content if current_message_content else None,
-                "tool_calls": [{"id": tc["id"], "type": "function", "function": tc["function"]} for tc in tool_calls] if tool_calls else None
-            })
+                        if tc.index >= len(tool_calls):
+                            tool_calls.append({"id": "", "function": {"name": "", "arguments": ""}})
+                        if tc.id:
+                            tool_calls[tc.index]["id"] = tc.id
+                        if tc.function:
+                            if tc.function.name:
+                                tool_calls[tc.index]["function"]["name"] = tc.function.name
+                            if tc.function.arguments:
+                                tool_calls[tc.index]["function"]["arguments"] += tc.function.arguments
 
             if not tool_calls:
                 break
-            
-            # Execute Tools using Global State
+
+            # Add assistant message with tool calls
+            conversation.append({
+                "role": "assistant",
+                "content": current_message_content or None,
+                "tool_calls": [
+                    {"id": tc["id"], "type": "function", "function": tc["function"]}
+                    for tc in tool_calls
+                ]
+            })
+
+            # Execute tool calls
             for tc in tool_calls:
-                func_name = tc["function"]["name"]
-                func_args = tc["function"]["arguments"]
                 call_id = tc["id"]
-                
+                func_name = tc["function"]["name"]
                 try:
-                    # Notify use (optional)
-                    # yield f"\n\n*Using tool: {func_name}*\n\n" 
-                    
-                    arguments = json.loads(func_args)
-                    # Use our own PROXY execution method
-                    # Since we are inside the app, we can call mcp_server logic or just use state directly.
-                    # Using state directly avoids the 'mcp_server' overhead for this internal call.
-                    
-                    # Resolve service
-                    service_name = state.tool_map.get(func_name)
-                    if service_name:
-                        # Attempt to get a valid session (handles reconnects)
-                        session = await state.get_session(service_name)
-                        if session:
-                            print(f"🔧 Chat calling Tool: {func_name} on {service_name}")
-                            result = await session.call_tool(func_name, arguments)
-                            print(f"🔍 DEBUG: Orchestrator received result from {func_name}: type={type(result)}")
-                            print(f"🔍 DEBUG: Result content: {result.content}")
-                            sys.stdout.flush()
-                            text_results = [c.text for c in result.content if c.type == "text"]
-                            result_content = "\n".join(text_results)
-                        else:
-                            result_content = f"Error: Service {service_name} unavailable for tool {func_name}."
-                    else:
-                        result_content = f"Error: Tool {func_name} not found."
-                        
+                    arguments = json.loads(tc["function"]["arguments"])
+                except json.JSONDecodeError:
+                    arguments = {}
+
+                try:
+                    result_content = await execute_tool(func_name, arguments)
                 except Exception as e:
                     result_content = f"Error executing tool {func_name}: {str(e)}"
 
@@ -481,6 +486,7 @@ async def chat_endpoint(request: ChatRequest):
                 })
 
     return StreamingResponse(event_generator(), media_type="text/plain")
+
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8005, reload=True)

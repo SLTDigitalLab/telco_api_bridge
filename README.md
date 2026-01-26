@@ -2,34 +2,66 @@
 
 An AI-powered HR assistant using **MCP (Model Context Protocol)** to provide leave management, loan processing, and HR policy search through natural conversation.
 
+## 🏗️ Architecture
+
+```
+Claude Desktop ──► bridge.py ──► Orchestrator (Local) ──┬──► Leave Service (Docker)
+                                                        ├──► Loan Service (Docker)
+React Frontend ─────────────────► Orchestrator (Local) ─┴──► Policy Service (Docker + RAG)
+```
+
+- **Orchestrator**: Runs locally on your machine (port 8005)
+- **MCP Services**: Run in Docker containers (ports 8000, 8001, 8002)
+
+---
+
 ## 🚀 Quick Start
 
 ### Prerequisites
 - Docker & Docker Compose
+- Python 3.10+
 - OpenAI API Key
 
-### Setup
+### 1. Configure Environment
 
 ```bash
-# 1. Configure environment
+# Create .env file with your OpenAI API key
 echo "OPENAI_API_KEY=your-key-here" > .env
-
-# 2. Start all services
-docker-compose up --build
 ```
 
-### Access Points
+### 2. Start MCP Services (Docker)
 
-| Service | Port | Description |
-|---------|------|-------------|
-| Orchestrator | `8005` | Main API + MCP endpoint |
-| Leave Service | `8000` | Leave management |
-| Loan Service | `8001` | Loan processing |
-| Policy Service | `8002` | RAG policy search |
+```bash
+docker-compose up -d --build
+```
+
+### 3. Start Orchestrator (Local)
+
+```bash
+cd orchestrator
+pip install -r requirements.txt
+
+# Set environment variable (PowerShell)
+$env:OPENAI_API_KEY="your-key-here"
+
+# Run the orchestrator
+python main.py
+```
 
 ---
 
-## �️ Available Tools
+## 🌐 Access Points
+
+| Service | Port | Location | Description |
+|---------|------|----------|-------------|
+| Orchestrator | `8005` | Local | Main API + MCP endpoint |
+| Leave Service | `8000` | Docker | Leave management |
+| Loan Service | `8001` | Docker | Loan processing |
+| Policy Service | `8002` | Docker | RAG policy search |
+
+---
+
+## 🛠️ Available Tools
 
 ### Leave Service
 - `get_leave_balance(employee_id)` - Get leave balance
@@ -66,18 +98,18 @@ Add to your `claude_desktop_config.json`:
 
 ```
 HR Agent/
-├── orchestrator/       # Central API gateway (FastAPI + MCP)
-├── leave_service/      # Leave management microservice
-├── loan_service/       # Loan processing microservice
-├── policy_service/     # RAG-based policy search
+├── orchestrator/       # Main API gateway (runs locally)
+├── leave_service/      # Leave management (Docker)
+├── loan_service/       # Loan processing (Docker)
+├── policy_service/     # RAG policy search (Docker)
 ├── frontend-client/    # React web UI
 ├── bridge.py           # Claude Desktop MCP bridge
-└── docker-compose.yml
+└── docker-compose.yml  # Docker config for MCP services
 ```
 
 ---
 
-## � Adding Policy Documents
+## 📄 Adding Policy Documents
 
 Place PDF, DOCX, or TXT files in `policy_service/docs/` and restart:
 
@@ -90,9 +122,15 @@ docker-compose restart policy_service
 ## 🐛 Troubleshooting
 
 ```bash
-# View logs
+# View MCP service logs
 docker-compose logs -f
 
-# Rebuild from scratch
-docker-compose down && docker-compose up --build
+# Rebuild services from scratch
+docker-compose down && docker-compose up --build -d
+
+# Check if orchestrator can reach services
+curl http://localhost:8000/sse
+curl http://localhost:8001/sse
+curl http://localhost:8002/sse
 ```
+

@@ -4,8 +4,8 @@
       "name": "Kamal",
       "leave_balance": {
         "total": 41,
-        "used": 20,
-        "remaining": 21
+        "used": 28,
+        "remaining": 13
       },
       "leave_records": [
         {
@@ -47,6 +47,36 @@
           "start_date": "2026-01-20",
           "days": 1,
           "reason": "Personal work"
+        },
+        {
+          "start_date": "2026-01-21",
+          "days": 1,
+          "reason": "Personal reason"
+        },
+        {
+          "start_date": "2026-01-26",
+          "days": 3,
+          "reason": "Family Trip"
+        },
+        {
+          "start_date": "2026-01-22",
+          "days": 1,
+          "reason": "Family function"
+        },
+        {
+          "start_date": "2026-01-23",
+          "days": 1,
+          "reason": "Personal"
+        },
+        {
+          "start_date": "2026-01-24",
+          "days": 1,
+          "reason": "Personal"
+        },
+        {
+          "start_date": "2026-01-25",
+          "days": 1,
+          "reason": "Personal reason"
         }
       ]
     },
@@ -54,8 +84,8 @@
       "name": "Nimali",
       "leave_balance": {
         "total": 41,
-        "used": 18,
-        "remaining": 23
+        "used": 22,
+        "remaining": 19
       },
       "leave_records": [
         {
@@ -102,6 +132,26 @@
           "start_date": "2026-01-26",
           "days": 2,
           "reason": "Home coming function of my cousin"
+        },
+        {
+          "start_date": "2026-01-30",
+          "days": 1,
+          "reason": "No reason"
+        },
+        {
+          "start_date": "2026-01-23",
+          "days": 1,
+          "reason": "Personal"
+        },
+        {
+          "start_date": "2026-01-25",
+          "days": 1,
+          "reason": "Personal reason"
+        },
+        {
+          "start_date": "2026-01-18",
+          "days": 1,
+          "reason": "1 day trip"
         }
       ]
     },
@@ -109,8 +159,8 @@
       "name": "Sunil",
       "leave_balance": {
         "total": 41,
-        "used": 12,
-        "remaining": 29
+        "used": 13,
+        "remaining": 28
       },
       "leave_records": [
         {
@@ -129,8 +179,8 @@
       "name": "Priyanka",
       "leave_balance": {
         "total": 41,
-        "used": 9,
-        "remaining": 32
+        "used": 10,
+        "remaining": 31
       },
       "leave_records": [
         {
@@ -147,6 +197,11 @@
           "start_date": "2026-01-20",
           "days": 1,
           "reason": "Wedding"
+        },
+        {
+          "start_date": "2026-01-23",
+          "days": 1,
+          "reason": "Personal"
         }
       ]
     },
@@ -184,14 +239,19 @@
       "name": "Chamari",
       "leave_balance": {
         "total": 41,
-        "used": 5,
-        "remaining": 36
+        "used": 6,
+        "remaining": 35
       },
       "leave_records": [
         {
           "start_date": "2026-01-20",
           "days": 2,
           "reason": "Cousin's graduation"
+        },
+        {
+          "start_date": "2026-01-22",
+          "days": 1,
+          "reason": "Wedding"
         }
       ]
     },
