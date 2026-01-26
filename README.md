@@ -77,7 +77,7 @@ python main.py
 
 ---
 
-## 💬 Claude Desktop Integration
+## Claude Desktop Integration
 
 Add to your `claude_desktop_config.json`:
 
@@ -94,7 +94,7 @@ Add to your `claude_desktop_config.json`:
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 HR Agent/
@@ -119,7 +119,7 @@ docker-compose restart policy_service
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ```bash
 # View MCP service logs
